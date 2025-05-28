@@ -70,31 +70,20 @@
       function drawPeruca(landmarks) {
         if (!perucaLoaded) return;
 
-        const leftEye = landmarks.getLeftEye();
-        const rightEye = landmarks.getRightEye();
-        const leftBrow = landmarks.getLeftEyeBrow();
-        const rightBrow = landmarks.getRightEyeBrow();
+        const nose = landmarks.getNose(); // pontos do nariz
+        const jaw = landmarks.getJawOutline();
 
-        const browCenterX = (leftBrow[0].x + rightBrow[4].x) / 2;
-        const browTopY = Math.min(leftBrow[0].y, rightBrow[4].y);
+        const noseTip = nose[3]; // centro do nariz (ponto confiável)
+        const faceWidth = jaw[13].x - jaw[3].x;
 
-        const eyeDist = Math.abs(rightEye[3].x - leftEye[0].x);
+        const wigWidth = faceWidth * 2.3; // aumentar um pouco
+        const wigHeight = wigWidth * (perucaImg.height / perucaImg.width); // manter proporção
 
-        // Aumenta o tamanho da peruca
-        const scale = 3; // pode ajustar para 2.2, 2.6 etc.
-        const wigWidth = eyeDist * scale;
-        const wigHeight = wigWidth * 1.3;
+        // Centralizar exatamente no nariz
+        const x = noseTip.x - wigWidth / 2;
+        const y = noseTip.y - wigHeight / 2;
 
-        // Desce a peruca um pouco
-        const offsetY = 45; // pixels extras para descer a peruca
-
-        ctx.drawImage(
-          perucaImg,
-          browCenterX - wigWidth / 2,
-          browTopY - wigHeight / 2 + offsetY,
-          wigWidth,
-          wigHeight
-        );
+        ctx.drawImage(perucaImg, x, y, wigWidth, wigHeight);
       }
 
       async function detectInImage(imageEl) {
