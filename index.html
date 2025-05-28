@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>teste sua peluca</title>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <style>
+      body {
+        margin: 0;
+        text-align: center;
+        background: #111;
+        color: white;
+        font-family: sans-serif;
+      }
+      canvas,
+      video,
+      img#inputImage {
+        max-width: 90vw;
+        max-height: 80vh;
+      }
+      #controls {
+        margin: 10px;
+      }
+      input {
+        margin: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>👒 Teste sua Pelukar</h1>
+    <div id="controls">
+      <input type="file" id="imageUpload" accept="image/*" />
+      <button onclick="startWebcam()">Usar Webcam</button>
+    </div>
+
+    <video
+      id="video"
+      width="640"
+      height="480"
+      autoplay
+      muted
+      style="display: none"
+    ></video>
+    <img id="inputImage" style="display: none" />
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const inputImage = document.getElementById("inputImage");
+      const imageUpload = document.getElementById("imageUpload");
+
+      const perucaImg = new Image();
+      perucaImg.src = "peruca.png";
+      let perucaLoaded = false;
+      perucaImg.onload = () => {
+        perucaLoaded = true;
+      };
+
+      async function loadModels() {
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(
+          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/"
+        );
+        await faceapi.nets.faceLandmark68Net.loadFromUri(
+          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/"
+        );
+      }
+
+      function drawPeruca(landmarks) {
+        if (!perucaLoaded) return;
+
+        const leftEye = landmarks.getLeftEye();
+        const rightEye = landmarks.getRightEye();
+        const leftBrow = landmarks.getLeftEyeBrow();
+        const rightBrow = landmarks.getRightEyeBrow();
+
+        const browCenterX = (leftBrow[0].x + rightBrow[4].x) / 2;
+        const browTopY = Math.min(leftBrow[0].y, rightBrow[4].y);
+
+        const eyeDist = Math.abs(rightEye[3].x - leftEye[0].x);
+
+        // Aumenta o tamanho da peruca
+        const scale = 3; // pode ajustar para 2.2, 2.6 etc.
+        const wigWidth = eyeDist * scale;
+        const wigHeight = wigWidth * 1.3;
+
+        // Desce a peruca um pouco
+        const offsetY = 45; // pixels extras para descer a peruca
+
+        ctx.drawImage(
+          perucaImg,
+          browCenterX - wigWidth / 2,
+          browTopY - wigHeight / 2 + offsetY,
+          wigWidth,
+          wigHeight
+        );
+      }
+
+      async function detectInImage(imageEl) {
+        const detections = await faceapi
+          .detectAllFaces(imageEl, new faceapi.SsdMobilenetv1Options())
+          .withFaceLandmarks();
+        canvas.width = imageEl.width;
+        canvas.height = imageEl.height;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(imageEl, 0, 0);
+        detections.forEach((det) => drawPeruca(det.landmarks));
+      }
+
+      imageUpload.addEventListener("change", async () => {
+        const file = imageUpload.files[0];
+        if (!file) return;
+        const img = await faceapi.bufferToImage(file);
+        inputImage.src = img.src;
+        inputImage.onload = () => {
+          video.style.display = "none";
+          inputImage.style.display = "block";
+          detectInImage(inputImage);
+        };
+      });
+
+      async function startWebcam() {
+        inputImage.style.display = "none";
+        video.style.display = "block";
+        const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+        video.srcObject = stream;
+        const displaySize = { width: video.width, height: video.height };
+        faceapi.matchDimensions(canvas, displaySize);
+
+        setInterval(async () => {
+          const detections = await faceapi
+            .detectAllFaces(video, new faceapi.SsdMobilenetv1Options())
+            .withFaceLandmarks();
+          const resized = faceapi.resizeResults(detections, displaySize);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(video, 0, 0);
+          resized.forEach((det) => drawPeruca(det.landmarks));
+        }, 100);
+      }
+
+      // Cola de imagem do clipboard
+      window.addEventListener("paste", async (event) => {
+        const items = event.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            const file = items[i].getAsFile();
+            const img = await faceapi.bufferToImage(file);
+            inputImage.src = img.src;
+            inputImage.onload = () => {
+              video.style.display = "none";
+              inputImage.style.display = "block";
+              detectInImage(inputImage);
+            };
+            break;
+          }
+        }
+      });
+
+      loadModels();
+    </script>
+  </body>
+</html>
